@@ -3,6 +3,12 @@
 // license that can be found in the LICENSE file.
 
 /*
+
+	Modified by @antisnatchor & @marver
+
+*/
+
+/*
 	Package binary_pack performs conversions between some Go values represented as byte slices.
 	This can be used in handling binary data stored in files or from network connections,
 	among other sources. It uses format slices of strings as compact descriptions of the layout
@@ -35,49 +41,65 @@ type BinaryPack struct {}
 // The items of msg slice must match the values required by the format exactly.
 func (bp *BinaryPack) Pack(format []string, msg []interface{}) ([]byte, error) {
 	if len(format) > len(msg) {
-		return nil, errors.New("Format is longer than values to pack")
+		return nil, errors.New(fmt.Sprintf("Format (%d) is longer than values (%d) to pack", len(format), len(msg)))
 	}
+
+	var endianess binary.ByteOrder = binary.BigEndian // defaults to big endian
 
 	res := []byte{}
 
 	for i, f := range format {
+		if f[0] == '<' {
+			// little endian
+			endianess = binary.LittleEndian
+			f = f[1:]
+		} else if f[0] == '>' {
+			endianess = binary.BigEndian
+			f = f[1:]
+		}
 		switch f {
 		case "?":
 			casted_value, ok := msg[i].(bool)
 			if !ok {
 				return nil, errors.New("Type of passed value doesn't match to expected '" + f + "' (bool)")
 			}
-			res = append(res, boolToBytes(casted_value)...)
+			res = append(res, boolToBytes(endianess, casted_value)...)
+		case "B":
+			casted_value, ok := msg[i].(uint8)
+			if !ok {
+				return nil, errors.New("Type of passed value doesn't match to expected '" + f + "' (int, 1 bytes)")
+			}
+			res = append(res, uint8ToBytes(endianess, casted_value, 1)...)
 		case "h", "H":
-			casted_value, ok := msg[i].(int)
+			casted_value, ok := msg[i].(uint16)
 			if !ok {
 				return nil, errors.New("Type of passed value doesn't match to expected '" + f + "' (int, 2 bytes)")
 			}
-			res = append(res, intToBytes(casted_value, 2)...)
+			res = append(res, uint16ToBytes(endianess, casted_value, 2)...)
 		case "i", "I", "l", "L":
-			casted_value, ok := msg[i].(int)
+			casted_value, ok := msg[i].(uint32)
 			if !ok {
-				return nil, errors.New("Type of passed value doesn't match to expected '" + f + "' (int, 4 bytes)")
+				return nil, errors.New("Type of passed value " + string(msg[i].(uint32)) + " doesn't match to expected '" + f + "' (int, 4 bytes)")
 			}
-			res = append(res, intToBytes(casted_value, 4)...)
+			res = append(res, uint32ToBytes(endianess, casted_value, 4)...)
 		case "q", "Q":
-			casted_value, ok := msg[i].(int)
+			casted_value, ok := msg[i].(uint64)
 			if !ok {
 				return nil, errors.New("Type of passed value doesn't match to expected '" + f + "' (int, 8 bytes)")
 			}
-			res = append(res, intToBytes(casted_value, 8)...)
+			res = append(res, uint64ToBytes(endianess, casted_value, 8)...)
 		case "f":
 			casted_value, ok := msg[i].(float32)
 			if !ok {
 				return nil, errors.New("Type of passed value doesn't match to expected '" + f + "' (float32)")
 			}
-			res = append(res, float32ToBytes(casted_value, 4)...)
+			res = append(res, float32ToBytes(endianess, casted_value, 4)...)
 		case "d":
 			casted_value, ok := msg[i].(float64)
 			if !ok {
 				return nil, errors.New("Type of passed value doesn't match to expected '" + f + "' (float64)")
 			}
-			res = append(res, float64ToBytes(casted_value, 8)...)
+			res = append(res, float64ToBytes(endianess, casted_value, 8)...)
 		default:
 			if strings.Contains(f, "s") {
 				casted_value, ok := msg[i].(string)
@@ -86,7 +108,7 @@ func (bp *BinaryPack) Pack(format []string, msg []interface{}) ([]byte, error) {
 				}
 				n, _ := strconv.Atoi(strings.TrimRight(f, "s"))
 				res = append(res, []byte(fmt.Sprintf("%s%s",
-					casted_value, strings.Repeat("\x00", n - len(casted_value))))...)
+					casted_value, strings.Repeat("\x00", n-len(casted_value))))...)
 			} else {
 				return nil, errors.New("Unexpected format token: '" + f + "'")
 			}
@@ -113,25 +135,38 @@ func (bp *BinaryPack) UnPack(format []string, msg []byte) ([]interface{}, error)
 
 	res := []interface{}{}
 
+	var endianess binary.ByteOrder = binary.BigEndian // default big endian
+
 	for _, f := range format {
+		if f[0] == '<' {
+			// little endian
+			endianess = binary.LittleEndian
+			f = f[1:]
+		} else if f[0] == '>' {
+			endianess = binary.BigEndian
+			f = f[1:]
+		}
 		switch f {
 		case "?":
-			res = append(res, bytesToBool(msg[:1]))
+			res = append(res, bytesToBool(endianess, msg[:1]))
+			msg = msg[1:]
+		case "B":
+			res = append(res, bytesToInt8(endianess, msg[:1]))
 			msg = msg[1:]
 		case "h", "H":
-			res = append(res, bytesToInt(msg[:2]))
+			res = append(res, bytesToInt16(endianess, msg[:2]))
 			msg = msg[2:]
 		case "i", "I", "l", "L":
-			res = append(res, bytesToInt(msg[:4]))
+			res = append(res, bytesToInt32(endianess, msg[:4]))
 			msg = msg[4:]
 		case "q", "Q":
-			res = append(res, bytesToInt(msg[:8]))
+			res = append(res, bytesToInt64(endianess, msg[:8]))
 			msg = msg[8:]
 		case "f":
-			res = append(res, bytesToFloat32(msg[:4]))
+			res = append(res, bytesToFloat32(endianess, msg[:4]))
 			msg = msg[4:]
 		case "d":
-			res = append(res, bytesToFloat64(msg[:8]))
+			res = append(res, bytesToFloat64(endianess, msg[:8]))
 			msg = msg[8:]
 		default:
 			if strings.Contains(f, "s") {
@@ -152,8 +187,14 @@ func (bp *BinaryPack) CalcSize(format []string) (int, error) {
 	var size int
 
 	for _, f := range format {
+		// skip endianess switches
+		if f[0] == '<' || f[0] == '>' {
+			f = f[1:]
+		}
 		switch f {
 		case "?":
+			size = size + 1
+		case "B":
 			size = size + 1
 		case "h", "H":
 			size = size + 2
@@ -174,68 +215,94 @@ func (bp *BinaryPack) CalcSize(format []string) (int, error) {
 	return size, nil
 }
 
-func boolToBytes(x bool) []byte {
+func boolToBytes(endianess binary.ByteOrder, x bool) []byte {
 	if x {
-		return intToBytes(1, 1)
+		return uint32ToBytes(endianess, 1, 1)
 	}
-	return intToBytes(0, 1)
+	return uint32ToBytes(endianess, 0, 1)
 }
 
-func bytesToBool(b []byte) bool {
-	return bytesToInt(b) > 0
+func bytesToBool(endianess binary.ByteOrder, b []byte) bool {
+	return bytesToInt8(endianess, b) > 0
 }
 
-func intToBytes(n int, size int) []byte {
+func uint32ToBytes(endianess binary.ByteOrder, n uint32, size int) []byte {
 	buf := bytes.NewBuffer([]byte{})
-	binary.Write(buf, binary.LittleEndian, int64(n))
+	binary.Write(buf, endianess, uint32(n))
 	return buf.Bytes()[0:size]
 }
 
-func bytesToInt(b []byte) int {
-	buf := bytes.NewBuffer(b)
-
-	switch len(b) {
-	case 1:
-		var x int8
-		binary.Read(buf, binary.LittleEndian, &x)
-		return int(x)
-	case 2:
-		var x int16
-		binary.Read(buf, binary.LittleEndian, &x)
-		return int(x)
-	case 4:
-		var x int32
-		binary.Read(buf, binary.LittleEndian, &x)
-		return int(x)
-	default:
-		var x int64
-		binary.Read(buf, binary.LittleEndian, &x)
-		return int(x)
-	}
-}
-
-func float32ToBytes(n float32, size int) []byte {
+func uint64ToBytes(endianess binary.ByteOrder, n uint64, size int) []byte {
 	buf := bytes.NewBuffer([]byte{})
-	binary.Write(buf, binary.LittleEndian, n)
+	binary.Write(buf, endianess, uint64(n))
 	return buf.Bytes()[0:size]
 }
 
-func bytesToFloat32(b []byte) float32 {
-	var x float32
+func uint16ToBytes(endianess binary.ByteOrder, n uint16, size int) []byte {
+	buf := bytes.NewBuffer([]byte{})
+	binary.Write(buf, endianess, uint16(n))
+	return buf.Bytes()[0:size]
+}
+
+func uint8ToBytes(endianess binary.ByteOrder, n uint8, size int) []byte {
+	buf := bytes.NewBuffer([]byte{})
+	binary.Write(buf, endianess, uint8(n))
+	return buf.Bytes()[0:size]
+}
+
+func bytesToInt8(endianess binary.ByteOrder, b []byte) uint8 {
 	buf := bytes.NewBuffer(b)
-	binary.Read(buf, binary.LittleEndian, &x)
+
+	var x uint8
+	binary.Read(buf, endianess, &x)
 	return x
 }
 
-func float64ToBytes(n float64, size int) []byte {
+func bytesToInt16(endianess binary.ByteOrder, b []byte) uint16 {
+
+	buf := bytes.NewBuffer(b)
+
+	var x uint16
+	binary.Read(buf, endianess, &x)
+	return x
+}
+func bytesToInt32(endianess binary.ByteOrder, b []byte) uint32 {
+	buf := bytes.NewBuffer(b)
+
+	var x uint32
+	binary.Read(buf, endianess, &x)
+	return x
+}
+func bytesToInt64(endianess binary.ByteOrder, b []byte) uint64 {
+	buf := bytes.NewBuffer(b)
+
+	var x uint64
+	binary.Read(buf, endianess, &x)
+	return x
+}
+
+func float32ToBytes(endianess binary.ByteOrder, n float32, size int) []byte {
 	buf := bytes.NewBuffer([]byte{})
-	binary.Write(buf, binary.LittleEndian, n)
+	binary.Write(buf, endianess, n)
 	return buf.Bytes()[0:size]
 }
 
-func bytesToFloat64(b []byte) float64 {
+func bytesToFloat32(endianess binary.ByteOrder, b []byte) float32 {
+	var x float32
+	buf := bytes.NewBuffer(b)
+	binary.Read(buf, endianess, &x)
+	return x
+}
+
+func float64ToBytes(endianess binary.ByteOrder, n float64, size int) []byte {
+	buf := bytes.NewBuffer([]byte{})
+	binary.Write(buf, endianess, n)
+	return buf.Bytes()[0:size]
+}
+
+func bytesToFloat64(endianess binary.ByteOrder, b []byte) float64 {
 	var x float64
 	buf := bytes.NewBuffer(b)
-	binary.Read(buf, binary.LittleEndian, &x)
+	binary.Read(buf, endianess, &x)
 	return x
 }
