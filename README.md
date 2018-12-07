@@ -5,7 +5,7 @@
 
 BinaryPack is a simple Golang library which implements some functionality of Python's [struct](https://docs.python.org/2/library/struct.html) package.
 
-This is a fork of Roman Kachanovsky [go-binary-pack](https://github.com/roman-kachanovsky/go-binary-pack/binary-pack)
+This is a fork of Roman Kachanovsky [go-binary-pack](https://github.com/roman-kachanovsky/go-binary-pack)
 
 **Note**
 
