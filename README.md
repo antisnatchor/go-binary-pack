@@ -24,14 +24,13 @@ binary_pack performs conversions between some Go values represented as byte slic
 		d - float64, packed size 8 bytes
 		Ns - string, packed size N bytes, N is a number of runes to pack/unpack
 		
+This code was hacked during @marver and @antisnatchor WebUSB research in March 2018.
+More info here: [A Journey into Novel Web-Technology and U2F Exploitation](https://www.youtube.com/watch?v=pUa6nWWTO4o)
 
+Main changes from the original project:
  - defaults to BigEndian, with auto-switch to LittleEndian dpending on < and > usage
  - added unsigned char (B) as a 1 byte integer
  - added more advanced usage examples
-
-This code was hacked during @marver and @antisnatchor WebUSB research in March 2018.
-
-More info here: [A Journey into Novel Web-Technology and U2F Exploitation](https://www.youtube.com/watch?v=pUa6nWWTO4o)
 
 **Install**
 
