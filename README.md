@@ -5,6 +5,8 @@
 
 BinaryPack is a simple Golang library which implements some functionality of Python's [struct](https://docs.python.org/2/library/struct.html) package.
 
+This is a fork of Roman Kachanovsky [go-binary-pack](https://github.com/roman-kachanovsky/go-binary-pack/binary-pack)
+
 **Note**
 
 binary_pack performs conversions between some Go values represented as byte slices.
@@ -22,7 +24,6 @@ binary_pack performs conversions between some Go values represented as byte slic
 		d - float64, packed size 8 bytes
 		Ns - string, packed size N bytes, N is a number of runes to pack/unpack
 		
-This is a fork of github.com/roman-kachanovsky/go-binary-pack/binary-pack, with some patches from @antisnatchor and @marver (X41 D-SEC):
 
  - defaults to BigEndian, with auto-switch to LittleEndian dpending on < and > usage
  - added unsigned char (B) as a 1 byte integer
@@ -60,7 +61,7 @@ size, err := bp.CalcSize(format)
 ```
 
 
-**More advanced example taken from @marver and @antisnatchor  WebUSB research**
+**More advanced example taken from the WebUSB research**
 
 Define the data structure:
 
